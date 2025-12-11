@@ -979,6 +979,19 @@ void SetDecoderProviderOptionsHardwareDeviceType(Config& config, std::string_vie
       provider_option.device_filtering_options->hardware_device_type = ParseHardwareDeviceType(hardware_device_type);
     }
   }
+  for (auto& pipeline_model : config.model.decoder.pipeline) {
+    if (!pipeline_model.session_options) {
+        pipeline_model.session_options = Config::SessionOptions{};
+    }
+    for (auto& provider_option : pipeline_model.session_options->provider_options) {
+      if (provider_option.name == normalized_provider) {
+        if (!provider_option.device_filtering_options) {
+          provider_option.device_filtering_options = Config::DeviceFilteringOptions{};
+        }
+        provider_option.device_filtering_options->hardware_device_type = ParseHardwareDeviceType(hardware_device_type);
+      }
+    }
+  }
 }
 
 void SetDecoderProviderOptionsHardwareDeviceId(Config& config, std::string_view provider_name, uint32_t hardware_device_id) {
@@ -989,6 +1002,19 @@ void SetDecoderProviderOptionsHardwareDeviceId(Config& config, std::string_view 
         provider_option.device_filtering_options = Config::DeviceFilteringOptions{};
       }
       provider_option.device_filtering_options->hardware_device_id = hardware_device_id;
+    }
+  }
+  for (auto& pipeline_model : config.model.decoder.pipeline) {
+    if (!pipeline_model.session_options) {
+        pipeline_model.session_options = Config::SessionOptions{};
+    }
+    for (auto& provider_option : pipeline_model.session_options->provider_options) {
+      if (provider_option.name == normalized_provider) {
+        if (!provider_option.device_filtering_options) {
+          provider_option.device_filtering_options = Config::DeviceFilteringOptions{};
+        }
+        provider_option.device_filtering_options->hardware_device_id = hardware_device_id;
+      }
     }
   }
 }
@@ -1003,6 +1029,19 @@ void SetDecoderProviderOptionsHardwareVendorId(Config& config, std::string_view 
       provider_option.device_filtering_options->hardware_vendor_id = hardware_vendor_id;
     }
   }
+  for (auto& pipeline_model : config.model.decoder.pipeline) {
+    if (!pipeline_model.session_options) {
+        pipeline_model.session_options = Config::SessionOptions{};
+    }
+    for (auto& provider_option : pipeline_model.session_options->provider_options) {
+      if (provider_option.name == normalized_provider) {
+        if (!provider_option.device_filtering_options) {
+          provider_option.device_filtering_options = Config::DeviceFilteringOptions{};
+        }
+        provider_option.device_filtering_options->hardware_vendor_id = hardware_vendor_id;
+      }
+    }
+  }
 }
 
 void ClearDecoderProviderOptionsHardwareDeviceType(Config& config, std::string_view provider_name) {
@@ -1010,6 +1049,15 @@ void ClearDecoderProviderOptionsHardwareDeviceType(Config& config, std::string_v
   for (auto& provider_option : config.model.decoder.session_options.provider_options) {
     if (provider_option.name == normalized_provider && provider_option.device_filtering_options) {
       provider_option.device_filtering_options->hardware_device_type = std::nullopt;
+    }
+  }
+  for (auto& pipeline_model : config.model.decoder.pipeline) {
+    if (pipeline_model.session_options) {
+      for (auto& provider_option : pipeline_model.session_options->provider_options) {
+        if (provider_option.name == normalized_provider && provider_option.device_filtering_options) {
+          provider_option.device_filtering_options->hardware_device_type = std::nullopt;
+        }
+      }
     }
   }
 }
@@ -1021,6 +1069,15 @@ void ClearDecoderProviderOptionsHardwareDeviceId(Config& config, std::string_vie
       provider_option.device_filtering_options->hardware_device_id = std::nullopt;
     }
   }
+  for (auto& pipeline_model : config.model.decoder.pipeline) {
+    if (pipeline_model.session_options) {
+      for (auto& provider_option : pipeline_model.session_options->provider_options) {
+        if (provider_option.name == normalized_provider && provider_option.device_filtering_options) {
+          provider_option.device_filtering_options->hardware_device_id = std::nullopt;
+        }
+      }
+    }
+  }
 }
 
 void ClearDecoderProviderOptionsHardwareVendorId(Config& config, std::string_view provider_name) {
@@ -1028,6 +1085,15 @@ void ClearDecoderProviderOptionsHardwareVendorId(Config& config, std::string_vie
   for (auto& provider_option : config.model.decoder.session_options.provider_options) {
     if (provider_option.name == normalized_provider && provider_option.device_filtering_options) {
       provider_option.device_filtering_options->hardware_vendor_id = std::nullopt;
+    }
+  }
+  for (auto& pipeline_model : config.model.decoder.pipeline) {
+    if (pipeline_model.session_options) {
+      for (auto& provider_option : pipeline_model.session_options->provider_options) {
+        if (provider_option.name == normalized_provider && provider_option.device_filtering_options) {
+          provider_option.device_filtering_options->hardware_vendor_id = std::nullopt;
+        }
+      }
     }
   }
 }
