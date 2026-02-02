@@ -80,6 +80,21 @@ DeviceSpan<float> IntermediatePipelineState::Run(int total_length, DeviceSpan<in
   return {};
 }
 
+DeviceSpan<Ort::Float16_t> IntermediatePipelineState::RunFp16(int total_length, DeviceSpan<int32_t>& next_tokens,
+                                                 DeviceSpan<int32_t> next_indices) {
+  if (!model_.sessions_[id_]) {
+    const_cast<DecoderOnlyPipelineModel*>(&model_)->sessions_[id_] =
+        OrtSession::Create(model_.ort_env_, (model_.config_->config_path / fs::path(model_.config_->model.decoder.pipeline[id_].filename)).c_str(),
+                           model_.GetSessionOptions(model_.config_->model.decoder.pipeline[id_].model_id));
+  }
+
+  if (model_.config_->model.decoder.pipeline[id_].run_options.has_value()) {
+    State::SetRunOptions(model_.config_->model.decoder.pipeline[id_].run_options.value());
+  }
+  State::Run(*model_.sessions_[id_]);
+  return {};
+}
+
 using NameToLayerIdxMap = std::unordered_map<std::string, size_t>;
 
 static NameToLayerIdxMap GeneratePastKeyNameToLayerIdxMap(const Config& config) {
@@ -387,6 +402,52 @@ DeviceSpan<float> DecoderOnlyPipelineState::Run(int total_length, DeviceSpan<int
   first_run_ = false;
 
   return logits_.Get();
+}
+
+DeviceSpan<Ort::Float16_t> DecoderOnlyPipelineState::RunFp16(int total_length, DeviceSpan<int32_t>& next_tokens,
+                                                DeviceSpan<int32_t> next_indices) {
+  DurationTrace trace{"DecoderOnlyPipelineState::Run"};
+
+  UpdateInputsOutputs(next_tokens, next_indices, total_length);
+
+  // first_run_ should be thought of as prompt_processing_run_.
+  // It is true only for the prompt processing part when the provided tokens are more than 1.
+  first_run_ = next_tokens.size() > 1;
+  size_t num_chunks{1};
+  if (first_run_ && model_.config_->model.decoder.sliding_window.has_value()) {
+    int window_size = model_.config_->model.decoder.sliding_window->window_size;
+    num_chunks = (next_tokens.size() + window_size - 1) / window_size;
+  }
+
+  for (size_t i = 0; i < num_chunks; ++i) {
+    RunPipeline(total_length, next_tokens, next_indices, (i == num_chunks - 1));
+
+    if (model_.config_->model.decoder.sliding_window.has_value() && i < num_chunks - 1) {
+      // Sliding the window over the input_ids, key_cache, and value_cache, position_ids, and attention_mask
+      input_ids_->Update(next_tokens);
+      UpdateKeyValueCache(next_indices, total_length);
+      position_inputs_->Update(next_tokens, total_length, static_cast<int>(input_ids_->GetShape()[1]));
+      logits_.Update(WrapTensor<int32_t>(*model_.p_device_inputs_, *input_ids_->Get()),
+                     static_cast<int>(input_ids_->GetShape()[1]));
+    }
+  }
+
+  // Clear the outputs of the pipeline models that are only run on prompt since this cannot happen earlier.
+  if (!first_run_) {
+    for (auto& pipeline_state : pipeline_states_) {
+      if (!model_.config_->model.decoder.pipeline[pipeline_state->id_].run_on_token_gen) {
+        for (const auto& output_name : pipeline_state->output_names_) {
+          if (auto iter = ortvalue_store_.find(output_name); iter != ortvalue_store_.end()) {
+            ortvalue_store_.erase(iter);
+          }
+        }
+      }
+    }
+  }
+
+  first_run_ = false;
+
+  return logits_.GetFp16();
 }
 
 void DecoderOnlyPipelineState::UpdateKeyValueCache(DeviceSpan<int32_t> beam_indices, int total_length) {

@@ -21,6 +21,10 @@ struct ModelIO : State {
     throw std::runtime_error("Unexpected call to ModelIO::Run, this function is not implemented for ModelIO.");
   }
 
+  DeviceSpan<Ort::Float16_t> RunFp16(int, DeviceSpan<int32_t>&, DeviceSpan<int32_t> next_indices = {}) override {
+    throw std::runtime_error("Unexpected call to ModelIO::Run, this function is not implemented for ModelIO.");
+  }
+
   void RewindTo(size_t index) override {
     throw std::runtime_error("Unexpected call to ModelIO::RewindTo, this function is not implemented for ModelIO.");
   };

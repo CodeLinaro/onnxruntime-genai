@@ -302,6 +302,19 @@ Generator::Generator(const Model& model, const GeneratorParams& params) : model_
   search_ = CreateSearch(params);
   state_ = model.CreateState(search_->GetSequenceLengths(), params);    // Search sequence lengths set when creating state
   guidance_logits_processor_ = CreateGuidanceLogitsProcessor(*state_);  // Could be nullptr if use_guidance (constrained decoding) is not used
+  SetLogitsDataType(model);
+}
+
+void Generator::SetLogitsDataType(const Model& model) {
+  auto t = model.session_info_.GetOutputDataType(model.config_->model.decoder.outputs.logits);
+  if (t == Ort::TypeToTensorType<float>) {
+    logits_dtype_ = LogitsDType::Float32;
+  }
+  else if (t == Ort::TypeToTensorType<Ort::Float16_t>) {
+    logits_dtype_ = LogitsDType::Float16;
+  }
+  else
+    throw std::runtime_error("Unsupported logits data type");
 }
 
 DeviceSpan<int32_t> Generator::AllocateInputIdsOnDevice(cpu_span<const int32_t> input_ids) {
@@ -408,13 +421,30 @@ void Generator::ComputeLogits(DeviceSpan<int32_t> next_tokens) {
     guidance_logits_processor_->CommitTokens(next_tokens_span);
   }
 
-  auto logits = state_->Run(search_->GetSequenceLength(), next_tokens, search_->GetNextIndices());
-  if (g_log.enabled && g_log.model_logits) {
-    auto& stream = Log("model_logits");
-    DumpValues(stream, Ort::TypeToTensorType<float>, logits.CopyDeviceToCpu().data(), logits.size());
-    stream << std::endl;
+  if (logits_dtype_ == LogitsDType::Float32) {
+    auto logits = state_->Run(search_->GetSequenceLength(), next_tokens, search_->GetNextIndices());
+    if (g_log.enabled && g_log.model_logits) {
+      auto& stream = Log("model_logits");
+      DumpValues(stream, Ort::TypeToTensorType<float>, logits.CopyDeviceToCpu().data(), logits.size());
+      stream << std::endl;
+    }
+    SetLogits(logits);
+  } else {
+    auto logits = state_->RunFp16(search_->GetSequenceLength(), next_tokens, search_->GetNextIndices());
+    if (g_log.enabled && g_log.model_logits) {
+      auto& stream = Log("model_logits");
+      // For logging only: convert to float32 for printing
+      auto host = logits.CopyDeviceToCpu();
+      std::vector<float> tmp(host.size());
+      for (size_t i = 0; i < host.size(); ++i) {
+        uint16_t raw = *reinterpret_cast<const uint16_t*>(&host[i]);
+        tmp[i] = Float16ToFloat32(raw);
+      }
+      DumpSpan(stream, std::span<const float>(tmp.data(), tmp.size()));
+      stream << std::endl;
+    }
+    SetLogitsFp16(logits);
   }
-  SetLogits(logits);
 
   if (last_action_ == Action::generated && guidance_logits_processor_) {
     auto ff_tokens = guidance_logits_processor_->GetFFTokens(0);
@@ -426,13 +456,30 @@ void Generator::ComputeLogits(DeviceSpan<int32_t> next_tokens) {
 
       std::span<int32_t> new_next_token_span{ff_tokens};
       auto new_next_token = AllocateInputIdsOnDevice(new_next_token_span);
-      logits = state_->Run(search_->GetSequenceLength(), new_next_token, search_->GetNextIndices());
-      if (g_log.enabled && g_log.model_logits) {
-        auto& stream_ = Log("model_logits");
-        DumpValues(stream_, Ort::TypeToTensorType<float>, logits.CopyDeviceToCpu().data(), logits.size());
-        stream_ << std::endl;
+      if(logits_dtype_ == LogitsDType::Float32) {
+        auto logits = state_->Run(search_->GetSequenceLength(), new_next_token, search_->GetNextIndices());
+        if (g_log.enabled && g_log.model_logits) {
+          auto& stream_ = Log("model_logits");
+          DumpValues(stream_, Ort::TypeToTensorType<float>, logits.CopyDeviceToCpu().data(), logits.size());
+          stream_ << std::endl;
+        }
+        SetLogits(logits);
+      } else {
+        auto logits = state_->RunFp16(search_->GetSequenceLength(), new_next_token, search_->GetNextIndices());
+        if (g_log.enabled && g_log.model_logits) {
+          // For logging only: convert to float32 for printing
+          auto& stream_ = Log("model_logits");
+          auto host = logits.CopyDeviceToCpu();
+          std::vector<float> tmp(host.size());
+          for (size_t i = 0; i < host.size(); ++i) {
+            uint16_t raw = *reinterpret_cast<const uint16_t*>(&host[i]);
+            tmp[i] = Float16ToFloat32(raw);
+          }
+          DumpSpan(stream_, std::span<const float>(tmp.data(), tmp.size()));
+          stream_ << std::endl;
+        }
+        SetLogitsFp16(logits);
       }
-      SetLogits(logits);
     }
   }
 
@@ -471,6 +518,11 @@ void Generator::SetLogits(DeviceSpan<float> logits) {
   computed_logits_ = true;
 }
 
+void Generator::SetLogitsFp16(DeviceSpan<Ort::Float16_t> logits) {
+  search_->SetLogitsFp16(logits);  
+  computed_logits_ = true;
+}
+
 void Generator::GenerateNextToken() {
   DurationTrace trace{"Generator::GenerateNextToken"};
 
@@ -502,8 +554,25 @@ void Generator::GenerateNextToken() {
     ComputeLogits(next_tokens);
   }
   if (guidance_logits_processor_) {
-    auto logits = GetLogits();
-    guidance_logits_processor_->ProcessLogits(logits);
+    if (logits_dtype_ == LogitsDType::Float32) {
+      auto logits = GetLogits();
+      guidance_logits_processor_->ProcessLogits(logits);
+    } else {
+      auto logits = GetLogitsFp16();
+      auto host = logits.CopyDeviceToCpu();
+      std::vector<float> host_fp32(host.size());
+      for (size_t i = 0; i < host.size(); ++i) {
+        uint16_t raw = *reinterpret_cast<const uint16_t*>(&host[i]);
+        host_fp32[i] = Float16ToFloat32(raw);
+      }
+      // Allocate a device buffer for float32 logits and copy from host
+      auto logits_fp32 = state_->params_->p_device->Allocate<float>(host_fp32.size());
+      auto logits_fp32_cpu_span = logits_fp32.CpuSpan();
+      std::copy(host_fp32.begin(), host_fp32.end(), logits_fp32_cpu_span.begin());
+      logits_fp32.CopyCpuToDevice();
+
+      guidance_logits_processor_->ProcessLogits(logits_fp32);
+    }
   }
   computed_logits_ = false;
   auto& search = search_->params_->search;
@@ -570,6 +639,13 @@ DeviceSpan<float> Generator::GetLogits() {
     ComputeLogits(search_->GetNextTokens());
   }
   return search_->GetLogits();
+}
+
+DeviceSpan<Ort::Float16_t> Generator::GetLogitsFp16() {
+  if (!computed_logits_) {
+    ComputeLogits(search_->GetNextTokens());
+  }
+  return search_->GetLogitsFp16();
 }
 
 DeviceSpan<int32_t> Generator::GetSequence(size_t index) const {

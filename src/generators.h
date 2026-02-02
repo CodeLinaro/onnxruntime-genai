@@ -67,6 +67,11 @@ using TokenSequences = std::vector<std::vector<int32_t>>;
 std::string to_string(DeviceType device_type);
 DeviceInterface* GetDeviceInterface(DeviceType type);
 
+enum class LogitsDType {
+  Float32,
+  Float16,
+};
+
 struct GeneratorParams : std::enable_shared_from_this<GeneratorParams>, LeakChecked<GeneratorParams>, ExternalRefCounted<GeneratorParams> {
   GeneratorParams(const Config& config);  // This constructor is only used for internal generator benchmarks
   GeneratorParams(const Model& model);
@@ -99,7 +104,9 @@ struct Generator : LeakChecked<Generator> {
   void GenerateNextToken();
   void RewindToLength(size_t new_length);  // Rewind state to new_length
   DeviceSpan<float> GetLogits();
+  DeviceSpan<Ort::Float16_t> GetLogitsFp16();
   void SetLogits(DeviceSpan<float> logits);
+  void SetLogitsFp16(DeviceSpan<Ort::Float16_t> logits);
   void SetRuntimeOption(const char* key, const char* value);
   bool IsSessionTerminated() const;
 
@@ -124,6 +131,8 @@ struct Generator : LeakChecked<Generator> {
                 generated,  // Set after GenerateNextToken
                 rewound };  // Set after RewindToLength
   Action last_action_{standard};
+  void SetLogitsDataType(const Model& model);
+  LogitsDType logits_dtype_{LogitsDType::Float32};
 };
 
 struct OrtGlobals {

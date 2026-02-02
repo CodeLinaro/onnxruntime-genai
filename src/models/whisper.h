@@ -28,6 +28,9 @@ struct AudioEncoderState : State {
   void AddCrossCache(std::unique_ptr<CrossCache>& cross_cache) { cross_cache->AddOutputs(*this); }
   void SetExtraInputs(const std::vector<ExtraInput>& extra_inputs) override;
   DeviceSpan<float> Run(int current_length, DeviceSpan<int32_t>& next_tokens, DeviceSpan<int32_t> next_indices) override;
+  DeviceSpan<Ort::Float16_t> RunFp16(int current_length, DeviceSpan<int32_t>& next_tokens, DeviceSpan<int32_t> next_indices) override {
+    return {};
+  }
 
   int GetNumFrames() { return num_frames_; }
 
@@ -48,6 +51,9 @@ struct WhisperDecoderState : State {
 
   void AddCrossCache(std::unique_ptr<CrossCache>& cross_cache) { cross_cache->AddInputs(*this); }
   DeviceSpan<float> Run(int current_length, DeviceSpan<int32_t>& next_tokens, DeviceSpan<int32_t> next_indices) override;
+  DeviceSpan<Ort::Float16_t> RunFp16(int current_length, DeviceSpan<int32_t>& next_tokens, DeviceSpan<int32_t> next_indices) override {
+    return {};
+  }
 
   bool HasPastSequenceLengthInput() { return model_.session_info_.HasInput(model_.config_->model.decoder.inputs.past_sequence_length); }
   bool HasCacheIndirectionInput() { return model_.session_info_.HasInput(model_.config_->model.decoder.inputs.cache_indirection); }
@@ -91,6 +97,9 @@ struct WhisperState : State {
   void SetExtraInputs(const std::vector<ExtraInput>& extra_inputs) override;
 
   DeviceSpan<float> Run(int current_length, DeviceSpan<int32_t>& next_tokens, DeviceSpan<int32_t> next_indices) override;
+  DeviceSpan<Ort::Float16_t> RunFp16(int current_length, DeviceSpan<int32_t>& next_tokens, DeviceSpan<int32_t> next_indices) override {
+    return {};
+  }
   OrtValue* GetInput(const char* name) override;
   OrtValue* GetOutput(const char* name) override;
 

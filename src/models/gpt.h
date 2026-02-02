@@ -22,6 +22,9 @@ struct Gpt_State : State {
   void SetExtraInputs(const std::vector<ExtraInput>& extra_inputs) override;
 
   DeviceSpan<float> Run(int current_length, DeviceSpan<int32_t>& next_tokens, DeviceSpan<int32_t> next_indices) override;
+  DeviceSpan<Ort::Float16_t> RunFp16(int current_length, DeviceSpan<int32_t>& next_tokens, DeviceSpan<int32_t> next_indices) override {
+    return {};
+  }
 
   void RewindTo(size_t index) override;
 

@@ -11,6 +11,7 @@ struct Logits {
   void Add();
   // For first iteration, find last token of each beam and store it in output_last_tokens_.
   DeviceSpan<float> Get();
+  DeviceSpan<Ort::Float16_t> GetFp16();
 
   // Resize logits to [bz, token_count, vocab_size] if necessary.
   void Update(const DeviceSpan<int32_t>& next_tokens, size_t new_kv_length);
@@ -34,6 +35,7 @@ struct Logits {
   std::vector<int> input_sequence_lengths;
   // OrtValue wrapped in a DeviceMemory object to make it universal
   DeviceSpan<float> logits_;
+  DeviceSpan<Ort::Float16_t> logits_fp16_;
 
   // Set to true when prefill will generate the already 'trimmed' logits required for sampling.
   bool trimmed_prefill_logits_ = false;

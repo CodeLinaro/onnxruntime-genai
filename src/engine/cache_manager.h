@@ -17,6 +17,10 @@ struct KeyValueCacheState : State {
                         DeviceSpan<int32_t> next_indices) override {
     return {};
   }
+  DeviceSpan<Ort::Float16_t> RunFp16(int total_length, DeviceSpan<int32_t>& next_tokens,
+                        DeviceSpan<int32_t> next_indices) override {
+    return {};
+  }
 };
 
 struct CacheManager {

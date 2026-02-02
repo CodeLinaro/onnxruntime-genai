@@ -1,3 +1,4 @@
+#include "generators.h"
 #include "sequences.h"
 #include <random>
 #include "beam_search_scorer.h"
@@ -17,7 +18,9 @@ struct Search : LeakChecked<Search> {
   virtual DeviceSpan<int32_t> GetSequence(size_t index) { return sequences_.GetSequence(index); }
 
   virtual DeviceSpan<float> GetLogits() const = 0;
+  virtual DeviceSpan<Ort::Float16_t> GetLogitsFp16() const = 0;
   virtual void SetLogits(DeviceSpan<float> logits) = 0;
+  virtual void SetLogitsFp16(DeviceSpan<Ort::Float16_t> logits) = 0;
   virtual bool IsDone() const = 0;
 
   virtual void SelectTop() = 0;
@@ -45,7 +48,9 @@ struct Search_Cpu : Search {
 
   bool IsDone() const override { return done_; }
   DeviceSpan<float> GetLogits() const override;
+  DeviceSpan<Ort::Float16_t> GetLogitsFp16() const override;    
   void SetLogits(DeviceSpan<float> logits) override;
+  void SetLogitsFp16(DeviceSpan<Ort::Float16_t> logits) override;
 
   void ApplyMinLength(int min_length) override;
   void ApplyRepetitionPenalty(float penalty) override;
@@ -59,6 +64,9 @@ struct Search_Cpu : Search {
   cpu_span<int32_t> next_tokens_;  // shape (beam_size*batch_size)
 
   DeviceSpan<float> next_token_scores_;  // shape (beam_size*batch_size, vocab_size)
+  DeviceSpan<Ort::Float16_t> next_token_scores_fp16_;  // shape (beam_size*batch_size, vocab_size)
+
+  LogitsDType logits_dtype_{LogitsDType::Float32};
 
   bool done_{};
 };

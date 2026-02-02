@@ -39,6 +39,8 @@ struct IntermediatePipelineState : State {
 
   DeviceSpan<float> Run(int current_length, DeviceSpan<int32_t>& next_tokens,
                         DeviceSpan<int32_t> next_indices) override;
+  DeviceSpan<Ort::Float16_t> RunFp16(int current_length, DeviceSpan<int32_t>& next_tokens,
+                        DeviceSpan<int32_t> next_indices) override;
 
   bool HasInput(std::string_view name) const;
 
@@ -62,6 +64,8 @@ struct DecoderOnlyPipelineState : State {
   void SetExtraInputs(const std::vector<ExtraInput>& extra_inputs) override;
 
   DeviceSpan<float> Run(int total_length, DeviceSpan<int32_t>& next_tokens,
+                        DeviceSpan<int32_t> next_indices) override;
+  DeviceSpan<Ort::Float16_t> RunFp16(int total_length, DeviceSpan<int32_t>& next_tokens,
                         DeviceSpan<int32_t> next_indices) override;
 
   OrtValue* GetOutput(const char* name) override;

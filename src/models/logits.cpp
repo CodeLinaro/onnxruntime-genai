@@ -78,6 +78,48 @@ DeviceSpan<float> Logits::Get() {
   return logits_;
 }
 
+DeviceSpan<Ort::Float16_t> Logits::GetFp16() {
+  size_t element_count = shape_[0] * shape_[1] * shape_[2];
+
+  // The model's output logits are {batch_size*num_beams, input_seq_len, vocab_size}
+  OrtValue* logits_of_last_token = output_raw_->GetOrtTensor();
+  std::array<int64_t, 3> shape_last{shape_[0], 1, shape_[2]};
+  if (shape_[1] != 1) {
+    const size_t seq_length = shape_[1];
+    const size_t vocab_size = shape_[2];
+    const size_t num_beams = state_.params_->search.num_beams;
+
+    // create new OrtValue for logits_of_last_token and use output_last_tokens_ to hold it
+    output_last_tokens_ = OrtValue::CreateTensor(model_.p_device_inputs_->GetAllocator(), shape_last, type_);
+
+    logits_of_last_token = output_last_tokens_.get();
+
+    size_t element_size = Ort::SizeOf(type_);
+    size_t vocab_index = 0;  // Simpler math to have this index go up by vocab_size for every logit chunk we process
+
+    auto logits_raw = output_raw_->GetByteSpan();
+    auto logits_last_tokens = ByteWrapTensor(*model_.p_device_inputs_, *logits_of_last_token);
+
+    for (int batch_index = 0; batch_index < state_.params_->search.batch_size; batch_index++) {
+      // Find the first non pad token from the end
+      size_t token_index = input_sequence_lengths[batch_index] - 1;
+      for (int beam_index = 0; beam_index < num_beams; beam_index++) {
+        auto target = logits_last_tokens.subspan(vocab_index * element_size, vocab_size * element_size);
+        auto source = logits_raw.subspan((vocab_index * seq_length + token_index * vocab_size) * element_size, vocab_size * element_size);
+        target.CopyFrom(source);
+        vocab_index += vocab_size;
+      }
+    }
+
+    element_count = shape_[0] * shape_[2];  // shape_[1] is now 1, so the element count must be updated
+  }
+
+  if (logits_fp16_.empty() || logits_of_last_token->GetTensorMutableRawData() != logits_fp16_.Span().data())
+    logits_fp16_ = WrapTensor<Ort::Float16_t>(*model_.p_device_inputs_, *logits_of_last_token);
+
+  return logits_fp16_;
+}
+
 void Logits::Update(const DeviceSpan<int32_t>& next_tokens, size_t new_kv_length) {
   if (trimmed_prefill_logits_) {
     new_kv_length = 1;

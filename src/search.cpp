@@ -53,9 +53,20 @@ DeviceSpan<float> Search_Cpu::GetLogits() const {
   return next_token_scores_;
 }
 
+DeviceSpan<Ort::Float16_t> Search_Cpu::GetLogitsFp16() const {
+  return next_token_scores_fp16_;
+}
+
 void Search_Cpu::SetLogits(DeviceSpan<float> logits) {
   next_token_scores_ = logits;
+  logits_dtype_ = LogitsDType::Float32;
   next_token_scores_.CopyDeviceToCpu();  // To the device->cpu copy once here as all later calls use CpuSpan()
+}
+
+void Search_Cpu::SetLogitsFp16(DeviceSpan<Ort::Float16_t> logits) {
+  next_token_scores_fp16_ = logits;
+  logits_dtype_ = LogitsDType::Float16;
+  next_token_scores_fp16_.CopyDeviceToCpu();  // To the device->cpu copy once here as all later calls use CpuSpan()
 }
 
 DeviceSpan<int32_t> GreedySearch_Cpu::GetNextTokens() {
@@ -150,9 +161,15 @@ void GreedySearch_Cpu::SelectTop() {
       continue;
     }
 
-    std::span<float> const scores = next_token_scores_.CpuSpan().subspan(batch_id * params_->config.model.vocab_size, params_->config.model.vocab_size);
-    auto const token = static_cast<int32_t>(std::distance(scores.begin(), std::max_element(scores.begin(), scores.end())));
-    SetNextToken(batch_id, token);
+    if(logits_dtype_ == LogitsDType::Float32) {
+      std::span<float> const scores = next_token_scores_.CpuSpan().subspan(batch_id * params_->config.model.vocab_size, params_->config.model.vocab_size);
+      auto const token = static_cast<int32_t>(std::distance(scores.begin(), std::max_element(scores.begin(), scores.end())));
+      SetNextToken(batch_id, token);
+    } else {
+      std::span<Ort::Float16_t> const scores = next_token_scores_fp16_.CpuSpan().subspan(batch_id * params_->config.model.vocab_size, params_->config.model.vocab_size);
+      auto const token = static_cast<int32_t>(std::distance(scores.begin(), std::max_element(scores.begin(), scores.end())));
+      SetNextToken(batch_id, token);
+    }
   }
 
   if (!done_)

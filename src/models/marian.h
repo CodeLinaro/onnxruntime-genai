@@ -67,6 +67,9 @@ struct MarianState : State {
   MarianState(const MarianState&) = delete;
   MarianState& operator=(const MarianState&) = delete;
   DeviceSpan<float> Run(int current_length, DeviceSpan<int32_t>& next_tokens, DeviceSpan<int32_t> next_indices) override;
+  DeviceSpan<Ort::Float16_t> RunFp16(int current_length, DeviceSpan<int32_t>& next_tokens, DeviceSpan<int32_t> next_indices) override {
+    return {};
+  }
 
  private:
   const MarianModel& model_;

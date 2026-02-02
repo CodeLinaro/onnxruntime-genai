@@ -37,6 +37,9 @@ struct VisionState : State {
 
   void SetExtraInputs(const std::vector<ExtraInput>& extra_inputs, const int64_t num_images, const int64_t num_image_tokens);
   DeviceSpan<float> Run(int current_length, DeviceSpan<int32_t>& next_tokens, DeviceSpan<int32_t> next_indices = {}) override;
+  DeviceSpan<Ort::Float16_t> RunFp16(int current_length, DeviceSpan<int32_t>& next_tokens, DeviceSpan<int32_t> next_indices = {}) override {
+    return {};
+  }
 
  private:
   friend struct MultiModalPipelineState;
@@ -55,6 +58,9 @@ struct SpeechState : State {
 
   void SetExtraInputs(const std::vector<ExtraInput>& extra_inputs, const int64_t num_audio_tokens);
   DeviceSpan<float> Run(int current_length, DeviceSpan<int32_t>& next_tokens, DeviceSpan<int32_t> next_indices = {}) override;
+  DeviceSpan<Ort::Float16_t> RunFp16(int current_length, DeviceSpan<int32_t>& next_tokens, DeviceSpan<int32_t> next_indices = {}) override {
+    return {};
+  }
 
  private:
   friend struct MultiModalPipelineState;
@@ -72,6 +78,9 @@ struct EmbeddingState : State {
 
   void SetExtraInputs(const int64_t num_images_, const int64_t num_image_tokens_, const int64_t num_audio_tokens_);
   DeviceSpan<float> Run(int current_length, DeviceSpan<int32_t>& next_tokens, DeviceSpan<int32_t> next_indices = {});
+  DeviceSpan<Ort::Float16_t> RunFp16(int current_length, DeviceSpan<int32_t>& next_tokens, DeviceSpan<int32_t> next_indices = {}) {
+    return {};
+  }
 
  private:
   friend struct MultiModalPipelineState;
@@ -96,6 +105,9 @@ struct DecoderState : State {
   DecoderState& operator=(const DecoderState&) = delete;
 
   DeviceSpan<float> Run(int current_length, DeviceSpan<int32_t>& next_tokens, DeviceSpan<int32_t> next_indices) override;
+  DeviceSpan<Ort::Float16_t> RunFp16(int current_length, DeviceSpan<int32_t>& next_tokens, DeviceSpan<int32_t> next_indices) override {
+    return {};
+  }
 
  private:
   friend struct MultiModalPipelineState;
@@ -120,6 +132,10 @@ struct MultiModalPipelineState : State {
 
   DeviceSpan<float> Run(int current_length, DeviceSpan<int32_t>& next_tokens,
                         DeviceSpan<int32_t> next_indices) override;
+  DeviceSpan<Ort::Float16_t> RunFp16(int current_length, DeviceSpan<int32_t>& next_tokens,
+                        DeviceSpan<int32_t> next_indices) override {
+                          return {};
+                        }
 
   OrtValue* GetInput(const char* name) override;
 
