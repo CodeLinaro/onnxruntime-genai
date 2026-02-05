@@ -80,21 +80,6 @@ DeviceSpan<float> IntermediatePipelineState::Run(int total_length, DeviceSpan<in
   return {};
 }
 
-DeviceSpan<Ort::Float16_t> IntermediatePipelineState::RunFp16(int total_length, DeviceSpan<int32_t>& next_tokens,
-                                                 DeviceSpan<int32_t> next_indices) {
-  if (!model_.sessions_[id_]) {
-    const_cast<DecoderOnlyPipelineModel*>(&model_)->sessions_[id_] =
-        OrtSession::Create(model_.ort_env_, (model_.config_->config_path / fs::path(model_.config_->model.decoder.pipeline[id_].filename)).c_str(),
-                           model_.GetSessionOptions(model_.config_->model.decoder.pipeline[id_].model_id));
-  }
-
-  if (model_.config_->model.decoder.pipeline[id_].run_options.has_value()) {
-    State::SetRunOptions(model_.config_->model.decoder.pipeline[id_].run_options.value());
-  }
-  State::Run(*model_.sessions_[id_]);
-  return {};
-}
-
 using NameToLayerIdxMap = std::unordered_map<std::string, size_t>;
 
 static NameToLayerIdxMap GeneratePastKeyNameToLayerIdxMap(const Config& config) {

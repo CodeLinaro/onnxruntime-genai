@@ -166,7 +166,12 @@ void GreedySearch_Cpu::SelectTop() {
       auto const token = static_cast<int32_t>(std::distance(scores.begin(), std::max_element(scores.begin(), scores.end())));
       SetNextToken(batch_id, token);
     } else {
-      std::span<Ort::Float16_t> const scores = next_token_scores_fp16_.CpuSpan().subspan(batch_id * params_->config.model.vocab_size, params_->config.model.vocab_size);
+      std::span<Ort::Float16_t> const scores_fp16 = next_token_scores_fp16_.CpuSpan().subspan(batch_id * params_->config.model.vocab_size, params_->config.model.vocab_size);
+      std::vector<float> scores(scores_fp16.size());
+      for (size_t i = 0; i < scores_fp16.size(); ++i) {
+        uint16_t raw = *reinterpret_cast<const uint16_t*>(&scores_fp16[i]);
+        scores[i] = Float16ToFloat32(raw);
+      }
       auto const token = static_cast<int32_t>(std::distance(scores.begin(), std::max_element(scores.begin(), scores.end())));
       SetNextToken(batch_id, token);
     }
