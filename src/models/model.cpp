@@ -8,6 +8,7 @@
 #include <set>
 #include <string>
 #include <thread>
+#include <chrono>
 
 #include "../generators.h"
 #include "../search.h"
@@ -107,6 +108,11 @@ void State::DumpOutputs() {
   }
 }
 
+std::string getMicrosecondsSinceEpoch() {
+    auto now_us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    return std::to_string(now_us);
+}
+
 void State::Run(OrtSession& session, bool graph_capture_this_run) {
   DurationTrace trace{"State::Run"};
 
@@ -144,9 +150,14 @@ void State::Run(OrtSession& session, bool graph_capture_this_run) {
     ep_dynamic_options_next_run_.clear();
   }
 
+  // auto& stream = Log("infer_time");
+  std::cout << "Infer Time" << std::endl;
+  std::cout << "First Input:" << input_names_[0] << std::endl;
+  std::cout << "Start Time:" << getMicrosecondsSinceEpoch() << std::endl;
   session.Run(run_options_.get(), input_names_.data(), inputs_.data(), input_names_.size(),
               output_names_.data(), outputs_.data(), output_names_.size());
-
+  std::cout << "End Time:" << getMicrosecondsSinceEpoch() << std::endl;
+  
   extra_outputs_.RegisterOutputs();
 
   DumpOutputs();

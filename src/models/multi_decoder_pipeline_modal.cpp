@@ -472,8 +472,10 @@ DecoderPipelineState::DecoderPipelineState(const MultiModalPipelineLanguageModel
   }
 }
 
-
-
+std::string getMicrosecondsSinceEpoch_Pipe() {
+    auto now_us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    return std::to_string(now_us);
+}
 
 void DecoderPipelineState::RunPipeline(int total_length, DeviceSpan<int32_t>& next_tokens,
                                            DeviceSpan<int32_t> next_indices) {
@@ -510,6 +512,7 @@ void DecoderPipelineState::RunPipeline(int total_length, DeviceSpan<int32_t>& ne
     if (partial_kv_cache_update_record) {
       if (partial_kv_cache_update_record->outstanding_update.valid()) {
         partial_kv_cache_update_record->outstanding_update.get();
+        std::cout << "KV Cache Update End:" << getMicrosecondsSinceEpoch_Pipe() <<std::endl;
       }
     }
 
@@ -601,6 +604,7 @@ void DecoderPipelineState::RunPipeline(int total_length, DeviceSpan<int32_t>& ne
         key_value_cache.PartialUpdate(next_indices, total_length, layer_indices);
       };
       partial_kv_cache_update_record->outstanding_update = key_value_cache_update_worker_thread_->Enqueue(update_fn);
+      std::cout << "KV Cache Update Start:" << getMicrosecondsSinceEpoch_Pipe() <<std::endl;
     }
 
     // Transfer ownership of all the non-managed outputs from the current pipeline state to the ortvalue store.
