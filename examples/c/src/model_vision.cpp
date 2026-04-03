@@ -9,6 +9,8 @@
 // C++ API Example
 
 void CXX_API(const char* model_path, const char* execution_provider) {
+  // Oga::SetLogBool("enabled", true);
+  // Oga::SetLogBool("append_next_tokens", true);
   std::cout << "Creating config..." << std::endl;
   auto config = OgaConfig::Create(model_path);
 
@@ -74,18 +76,27 @@ void CXX_API(const char* model_path, const char* execution_provider) {
         content += image_content + ", ";
       }
       const std::string text_content = R"({ "type": "text", "text": ")";
+      const std::string text_system_prompt = R"({"role": "system","content": "You are a helpful AI assistant."},)";
       content += text_content + text + R"(" }])";
-      messages = R"([{"role": "user", "content": )" + content + R"(}])";
+      messages = "[";
+      if(image_paths.size() == 0)
+      {
+        messages +=  text_system_prompt;
+      }
+      messages += R"({"role": "user", "content": )" + content + R"(}])";
     }
 
+    std::cout<<"Input messages: "<<messages<<std::endl;
+    
     std::string prompt = std::string(tokenizer->ApplyChatTemplate("", messages.c_str(), "", true));
 
+    std::cout<<"Input Prompt: "<<prompt<<std::endl;
     std::cout << "Processing images and prompt..." << std::endl;
     auto input_tensors = processor->ProcessImages(prompt.c_str(), images.get());
 
     std::cout << "Generating response..." << std::endl;
     auto params = OgaGeneratorParams::Create(*model);
-    params->SetSearchOption("max_length", 7680);
+    params->SetSearchOption("max_length", 8192);
 
     auto generator = OgaGenerator::Create(*model, *params);
     generator->SetInputs(*input_tensors);

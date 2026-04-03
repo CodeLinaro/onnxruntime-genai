@@ -23,6 +23,8 @@ void TerminateGeneration(int signum) {
 }
 
 void CXX_API(const char* model_path, const char* execution_provider) {
+  // Oga::SetLogBool("enabled", true);
+  // Oga::SetLogBool("append_next_tokens", true);
   std::cout << "Creating config..." << std::endl;
   auto config = OgaConfig::Create(model_path);
 
@@ -64,8 +66,11 @@ void CXX_API(const char* model_path, const char* execution_provider) {
         }
       ]
     )";
+    
+    std::cout<<"Input messages: "<<messages<<std::endl;
     const std::string prompt = std::string(tokenizer->ApplyChatTemplate("", messages.c_str(), "", true));
 
+    std::cout<<"Input Prompt: "<<prompt<<std::endl;
     bool is_first_token = true;
     Timing timing;
     timing.RecordStartTimestamp();
@@ -76,7 +81,7 @@ void CXX_API(const char* model_path, const char* execution_provider) {
     std::cout << "Generating response..." << std::endl;
 
     auto params = OgaGeneratorParams::Create(*model);
-    params->SetSearchOption("max_length", 1024);
+    params->SetSearchOption("max_length", 8192);
     auto generator = OgaGenerator::Create(*model, *params);
     g_generator = generator.get();  // Store the current generator for termination
     generator->AppendTokenSequences(*sequences);
