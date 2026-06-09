@@ -64,7 +64,7 @@ def main(args):
     # Keep track of timings if requested
     if args.timings:
         started_timestamp = 0
-        first_token_timestamp = 0
+        token_timestamps = []
 
     # Keep asking for input prompts in a loop
     while True:
@@ -76,9 +76,6 @@ def main(args):
         # Add user message to list of messages
         input_list.append({"role": "user", "content": text})
         messages = json.dumps(input_list)
-
-        if args.timings:
-            started_timestamp = time.time()
 
         # Initialize generator params
         params = og.GeneratorParams(model)
@@ -95,11 +92,6 @@ def main(args):
                 print(f"Guidance data is: \n{guidance_data}")
                 print()
 
-        # Create generator
-        generator = og.Generator(model, params)
-        if args.verbose:
-            print("Generator created")
-
         # Apply chat template
         try:
             prompt = apply_chat_template(model_path=args.model_path, tokenizer=tokenizer, messages=messages, tools=tools, add_generation_prompt=True)
@@ -110,14 +102,22 @@ def main(args):
         if args.verbose:
             print(f"Prompt: {prompt}")
 
-        # Encode combined system + user prompt and append tokens to model
+        # Encode combined system + user prompt
         input_tokens = tokenizer.encode(prompt)
+
+        if args.timings:
+            started_timestamp = time.time()
+
+        # Create generator and append tokens
+        generator = og.Generator(model, params)
+        if args.verbose:
+            print("Generator created")
         generator.append_tokens(input_tokens)
 
         if args.verbose:
             print("Running generation loop...")
         if args.timings:
-            first = True
+            token_timestamps = []
             new_tokens = []
 
         print()
@@ -128,9 +128,7 @@ def main(args):
             while not generator.is_done():
                 generator.generate_next_token()
                 if args.timings:
-                    if first:
-                        first_token_timestamp = time.time()
-                        first = False
+                    token_timestamps.append(time.time())
 
                 new_token = generator.get_next_tokens()[0]
                 print(stream.decode(new_token), end="", flush=True)
@@ -151,10 +149,11 @@ def main(args):
         input_list.pop()
 
         if args.timings:
-            prompt_time = first_token_timestamp - started_timestamp
-            run_time = time.time() - first_token_timestamp
+            prompt_time = token_timestamps[0] - started_timestamp
+            run_time = token_timestamps[-1] - token_timestamps[0]
+            decode_tokens = len(new_tokens) - 1
             print(
-                f"Prompt length: {len(input_tokens)}, New tokens: {len(new_tokens)}, Total tokens: {total_tokens}, Time to first: {(prompt_time):.2f}s, Prompt tokens per second: {len(input_tokens) / prompt_time:.2f} tps, New tokens per second: {len(new_tokens) / run_time:.2f} tps"
+                f"Prompt length: {len(input_tokens)}, New tokens: {len(new_tokens)}, Total tokens: {total_tokens}, Time to first: {(prompt_time):.2f}s, Prompt tokens per second: {len(input_tokens) / prompt_time:.2f} tps, New tokens per second: {decode_tokens / run_time:.2f} tps"
             )
 
         # If non-interactive is requested, it will just run the model for the user prompt and exit
