@@ -2,10 +2,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 //
-// C++ API Example for Model Question-Answering
+// C++ API Example for Model Vision Question-Answering
 // This example demonstrates how to use the C++ API of the ONNX Runtime GenAI library
-// to perform model question-answering tasks. It includes functionalities to create a model,
-// tokenizer, and generator, and to handle user input for generating responses based on prompts.
+// to perform vision question-answering tasks. It includes functionalities to create a model,
+// tokenizer, multimodal processor, and generator, and to handle user input for generating
+// responses based on image inputs and prompts.
 // -----------------------------------------------------------------------------------------------
 
 #include <csignal>
@@ -29,6 +30,7 @@ void CXX_API(
     const std::string& model_path,
     const std::string& ep,
     const std::string& ep_path,
+    const std::vector<std::string>& image_paths,
     const std::string& system_prompt,
     const std::string& user_prompt,
     bool verbose,
@@ -47,6 +49,9 @@ void CXX_API(
   if (verbose) std::cout << "Creating tokenizer..." << std::endl;
   auto tokenizer = OgaTokenizer::Create(*model);
   auto stream = OgaTokenizerStream::Create(*tokenizer);
+
+  if (verbose) std::cout << "Creating multimodal processor..." << std::endl;
+  auto processor = OgaMultiModalProcessor::Create(*model);
 
   // Create running list of messages
   std::vector<nlohmann::ordered_json> input_list;
@@ -70,8 +75,13 @@ void CXX_API(
     input_list[0]["tools"] = tools;
   }
 
-  // Keep asking for input prompts in a loop
+  // Keep asking for image paths and input prompts in a loop
   while (true) {
+    // Get images
+    std::unique_ptr<OgaImages> images;
+    int num_images;
+    std::tie(images, num_images) = GetUserImages(image_paths, interactive);
+
     // Get user prompt
     std::string text = GetUserPrompt(user_prompt, interactive);
     signal(SIGINT, TerminateGeneration);
@@ -79,8 +89,12 @@ void CXX_API(
       break;  // Exit the loop
     }
 
+    // Construct user content based on the model type and number of images
+    const std::string model_type = std::string(model->GetType());
+    nlohmann::ordered_json user_content = GetUserContent(model_type, num_images, 0, text);
+
     // Add user message to list of messages
-    nlohmann::ordered_json user_message = nlohmann::ordered_json{{"role", "user"}, {"content", text}};
+    nlohmann::ordered_json user_message = nlohmann::ordered_json{{"role", "user"}, {"content", user_content}};
     input_list.push_back(user_message);
     nlohmann::ordered_json j = input_list;
     std::string messages = j.dump();
@@ -122,10 +136,10 @@ void CXX_API(
     if (verbose) std::cout << "Prompt: " << prompt << "\n"
                            << std::endl;
 
-    // Encode combined system + user prompt and append tokens to model
-    auto sequences = OgaSequences::Create();
-    tokenizer->Encode(prompt.c_str(), *sequences);
-    generator->AppendTokenSequences(*sequences);
+    // Process image inputs and append inputs to model
+    if (verbose) std::cout << "Processing images and prompt..." << std::endl;
+    auto input_tensors = processor->ProcessImages(prompt.c_str(), images.get());
+    generator->SetInputs(*input_tensors);
     const int prompt_tokens_length = generator->TokenCount();
 
     // Run generation loop
@@ -168,7 +182,7 @@ int main(int argc, char** argv) {
   // Get command-line args
   GeneratorParamsArgs generator_params_args;
   GuidanceArgs guidance_args;
-  std::string model_path, ep = "follow_config", ep_path = "", system_prompt = "You are a helpful AI assistant.", user_prompt = "What color is the sky?";
+  std::string model_path, ep = "follow_config", ep_path = "", system_prompt = "You are a helpful AI assistant.", user_prompt = "What is in the image?";
   bool verbose = false, debug = false, interactive = true, rewind = true;
   std::vector<std::string> image_paths;
   std::vector<std::string> audio_paths;
@@ -179,9 +193,9 @@ int main(int argc, char** argv) {
   // Responsible for cleaning up the library during shutdown
   OgaHandle handle;
 
-  std::cout << "--------------------------" << std::endl;
-  std::cout << "Hello, ORT GenAI Model-QA!" << std::endl;
-  std::cout << "--------------------------" << std::endl;
+  std::cout << "-----------------------------" << std::endl;
+  std::cout << "Hello, ORT GenAI Model-Vision" << std::endl;
+  std::cout << "-----------------------------" << std::endl;
 
   std::cout << "Model path: " << model_path << std::endl;
   std::cout << "Execution provider: " << ep << std::endl;
@@ -190,11 +204,11 @@ int main(int argc, char** argv) {
   if (!interactive) std::cout << "User prompt: " << user_prompt << std::endl;
   std::cout << "Verbose: " << verbose << std::endl;
   std::cout << "Interactive: " << interactive << std::endl;
-  std::cout << "--------------------------" << std::endl;
+  std::cout << "-----------------------------" << std::endl;
   std::cout << std::endl;
 
   try {
-    CXX_API(generator_params_args, guidance_args, model_path, ep, ep_path, system_prompt, user_prompt, verbose, debug, interactive);
+    CXX_API(generator_params_args, guidance_args, model_path, ep, ep_path, image_paths, system_prompt, user_prompt, verbose, debug, interactive);
   } catch (const std::exception& e) {
     std::cerr << "Error: " << e.what() << std::endl;
     return -1;

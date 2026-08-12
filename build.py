@@ -772,6 +772,7 @@ def build_examples(args: argparse.Namespace, env: dict[str, str]):
     samples_to_build = [
         "-DMODEL_QA=ON",
         "-DMODEL_CHAT=ON",
+        "-DMODEL_VISION=ON",
         "-DMODEL_MM=ON",
         "-DWHISPER=ON",
         "-DNEMOTRON_SPEECH=ON"
