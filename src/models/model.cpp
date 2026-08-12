@@ -18,6 +18,7 @@
 #include "whisper.h"
 #include "nemotron_speech.h"
 #include "multi_modal.h"
+#include "multi_decoder_pipeline_modal.h"
 #include "marian.h"
 #include "decoder_only_pipeline.h"
 #include "qwen_vl_model.h"
@@ -828,6 +829,8 @@ std::shared_ptr<Model> CreateModel(OrtEnv& ort_env, std::unique_ptr<Config> conf
     return std::make_shared<NemotronSpeechModel>(std::move(config), ort_env);
   if (ModelType::IsALM(config->model.type))
     return std::make_shared<WhisperModel>(std::move(config), ort_env);
+  if (ModelType::IsVLM(config->model.type))
+    return std::make_shared<MultiModalPipelineLanguageModel>(std::move(config), ort_env, true, false);
   if (ModelType::IsVLM(config->model.type))
     return std::make_shared<MultiModalLanguageModel>(std::move(config), ort_env, true, false);
   if (ModelType::IsPipe(config->model.type))
