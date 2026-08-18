@@ -183,6 +183,10 @@ int main(int argc, char** argv) {
   std::cout << "Hello, ORT GenAI Model-QA!" << std::endl;
   std::cout << "--------------------------" << std::endl;
 
+  std::string _tmp;
+  std::cout<<"Press Enter to start"<<std::endl;
+  std::getline(std::cin, _tmp);
+
   std::cout << "Model path: " << model_path << std::endl;
   std::cout << "Execution provider: " << ep << std::endl;
   if (!ep_path.empty()) std::cout << "Execution provider path: " << ep_path << std::endl;

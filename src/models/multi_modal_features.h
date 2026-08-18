@@ -26,8 +26,11 @@ struct MultiModalFeatures {
 
   // Reshape features tensor in-place (e.g., flatten 3D [B, T, H] to 2D [B*T, H])
   void ReshapeFeatures(std::vector<int64_t> new_shape);
+  DeviceSpan<uint8_t> AsByteSpan();
+  size_t BytesPerImage() const;
 
   auto& GetShape() const { return shape_; }
+  size_t GetIndex() { return index_; }
   OrtValue* Get() { return features_.get(); }
 
  private:

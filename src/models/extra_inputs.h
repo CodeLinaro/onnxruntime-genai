@@ -18,6 +18,7 @@ struct ExtraInputs {
   ExtraInputs(State& state);
   void Add(const std::vector<ExtraInput>& extra_inputs, const std::vector<std::string>& required_input_names = {});
 
+  bool Replace(const std::string& name, const std::shared_ptr<Tensor>& tensor);
  private:
   State& state_;
   const Model& model_{state_.model_};
